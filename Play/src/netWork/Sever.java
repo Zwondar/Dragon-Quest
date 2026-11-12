@@ -4,197 +4,205 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-import com.mysql.cj.protocol.Resultset;
+/**
+ * 2026-11-09 重写（优先级4）：
+ * 1) 数据库地址/账号从 config.properties 读取，不再硬编码 root/123456；
+ * 2) 使用 PreparedStatement 修复 SQL 注入；
+ * 3) 改用 [4 字节长度][UTF-8 负载] 协议，并真正在 run() 中接收消息后转发
+ *    （原 run() 从不调用 receive()，所以聊天/注册实际上不工作）；
+ * 4) 数据库连接失败时降级为"内存转发模式"，聊天仍可用。
+ */
+public class Sever implements Runnable{
 
-public class Sever implements  Runnable{
-	
-	static Thread thread;
-	
-  public InetAddress in;
-  
-  public InetAddress client;
-  
-  public static DatagramSocket dsr;
-  
-  public static DatagramSocket dss;
-  
-  public static boolean control;
-  
-  static Connection con;
-  
-  static java.sql.Statement stmt;
-  
-  byte [] buffer=new byte[1024];
-  
-  static Sever s;
-  
-  public Sever() {
-	  try {
-		  
-		 control=false;
-		
-		dsr=new DatagramSocket(15588);
-		
-		dss=new DatagramSocket();
-		
-		in=InetAddress.getByName("255.255.255.255");
-		
-		Class.forName("com.mysql.cj.jdbc.Driver");
-		
-		String url="jdbc:mysql://127.0.0.1:3306/text";
-		
-		String name="root";
-		
-		String password="123456";
-		
-		con=DriverManager.getConnection(url, name, password);
-		
-		stmt=con.createStatement();
-		
-		
-	} catch (SocketException | UnknownHostException | ClassNotFoundException | SQLException e) {
-		// TODO 自动生成的 catch 块
-		e.printStackTrace();
-	}
-  }
-  
-  public void getdata(String ip ,String gamename) {
-	  
-	  try {
-		
-		stmt.executeUpdate("insert into game(ip,name) values('"+ip+"','"+gamename+"')");
-		
-	} catch (SQLException e) {
-		// TODO 自动生成的 catch 块
-		e.printStackTrace();
-	}
-	  
-  }
-  
-  public void send() {
-	  
-	  DatagramPacket dp=new DatagramPacket(buffer,buffer.length,in,15589);
-	  
-	  try {
-		  
-		dss.send(dp);
-		
-		
-	} catch (IOException e) {
-		// TODO 自动生成的 catch 块
-		e.printStackTrace();
-	}
-	  
-  }
- 
-  public void receive() {
-	  
-	  byte[] getdata=new byte[1024];
-	  
-	  try {
-		
-		DatagramPacket dp=new DatagramPacket(getdata, getdata.length);
-		
-		dsr.receive(dp);
-		
-		buffer=dp.getData();
-		
-		if(new String(buffer).substring(1,8).equals("192.003")) {
-			
-			int length=Integer.parseInt(new String(buffer).substring(0, 1));
-			
-			client=dp.getAddress();
-			String ip=client.getHostAddress();
-			String name=new String(buffer).substring(8,8+length);
-			
-			getdata(ip, name);
-			
-			control=true;
-			
-		}
-		
-	} catch (IOException e) {
-		// TODO 自动生成的 catch 块
-		e.printStackTrace();
-	}
-	  
-	  
-  }
-  
- /* public static void main(String[] args) {
-	
-	  s=new Sever();
-	  
-	  s.play();
-	  
-	  while(true) {
-		  
-	  s.receive();
-	  if(control==false)
-		  
-	  s.send();
-	  
-	  control=false;
-	  }
-   }
-*/
-@Override
-public void run() {
-	
-	while(true) {
-		
-		String ip;
-		
-		String name;
-		
-		ResultSet rs;
+	private static final int MAX_PACKET = 8192;
+
+	// 2026-11-09 修复（优先级4）：记录最近通信过的客户端地址，用于单播转发。
+	// 原代码使用 255.255.255.255 广播，很多网络/防火墙下收不到。
+	private final Set<InetAddress> clients = ConcurrentHashMap.newKeySet();
+
+	private final DatagramSocket socket;
+
+	private final int clientPort;
+
+	private Connection con;
+
+	private static Thread thread;
+
+	public Sever() {
+
+		clientPort = NetConfig.getInt("client.port", 15589);
+
+		int listenPort = NetConfig.getInt("server.port", 15588);
+
+		DatagramSocket s = null;
+
 		try {
-			rs = stmt.executeQuery("select * from game");
-			while(rs.next()) {
-				
-				byte send [ ];
-				
-				ip=rs.getString(1);
-				
-				name=rs.getString(2);
-				
-				send=(String.valueOf(name.length())+"192.003"+name).getBytes();
-				
-				InetAddress i=InetAddress.getByName(ip);
-				
-				DatagramPacket dp=new DatagramPacket(send,send.length,i,15589);
-				
-				dss.send(dp);
-				
+			s = new DatagramSocket(listenPort);
+		} catch (IOException e) {
+			System.err.println("聊天服务器端口 " + listenPort + " 绑定失败: " + e.getMessage());
+		}
+
+		socket = s;
+
+		initDatabase();
+	}
+
+	// 2026-11-09 修复（优先级4）：数据库配置外部化 + 连接失败时降级，不影响聊天转发。
+	private void initDatabase() {
+
+		try {
+			String url = NetConfig.get("db.url",
+					"jdbc:mysql://127.0.0.1:3306/text?useUnicode=true&characterEncoding=utf8");
+			String user = NetConfig.get("db.user", "root");
+			String password = NetConfig.get("db.password", "");
+
+			Class.forName("com.mysql.cj.jdbc.Driver");
+
+			con = DriverManager.getConnection(url, user, password);
+
+			// 2026-11-09 新增（优先级4）：自动建表，减少手动准备。
+			try (Statement stmt = con.createStatement()) {
+				stmt.executeUpdate("CREATE TABLE IF NOT EXISTS game ("
+						+ "ip VARCHAR(64), name VARCHAR(64))");
 			}
-			
-		} catch (SQLException | IOException e) {
-			// TODO 自动生成的 catch 块
+
+		} catch (ClassNotFoundException e) {
+			System.err.println("未找到 MySQL 驱动，服务器将以内存模式运行（聊天可用，注册不写库）。"
+					+ "请把 mysql-connector-j 的 jar 加入 classpath。");
+		} catch (SQLException e) {
+			System.err.println("数据库连接失败，服务器将以内存模式运行: " + e.getMessage());
+		}
+	}
+
+	// 2026-11-09 修复（优先级4）：原为字符串拼接 SQL，存在注入风险；改用 PreparedStatement。
+	public void register(String ip, String gamename) {
+
+		if(con==null) return;
+
+		try (PreparedStatement ps = con.prepareStatement("INSERT INTO game(ip,name) VALUES(?,?)")) {
+			ps.setString(1, ip);
+			ps.setString(2, gamename);
+			ps.executeUpdate();
+		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		
-		
-		
-	try {
-		
-		thread.sleep(10000);
-	} catch (InterruptedException e) {
-		// TODO 自动生成的 catch 块
-		e.printStackTrace();
 	}
-	  
-	}
-   }
 
-public void play() {
-	thread=new Thread(this);
-	thread.start();
-}
+	private void sendTo(InetAddress address, String payload) {
+
+		if(socket==null||address==null) return;
+
+		try {
+			byte[] data = payload.getBytes(StandardCharsets.UTF_8);
+			byte[] packetData = ByteBuffer.allocate(4 + data.length).putInt(data.length).put(data).array();
+			socket.send(new DatagramPacket(packetData, packetData.length, address, clientPort));
+		} catch (IOException e) {
+			System.err.println("转发聊天消息失败: " + e.getMessage());
+		}
+	}
+
+	private void broadcast(String payload) {
+		for (InetAddress address : clients) {
+			sendTo(address, payload);
+		}
+	}
+
+	private static String decode(DatagramPacket packet) {
+
+		int length = packet.getLength();
+
+		if(length < 4) return null;
+
+		byte[] data = packet.getData();
+
+		int offset = packet.getOffset();
+
+		int payloadLength = ByteBuffer.wrap(data, offset, 4).getInt();
+
+		if(payloadLength < 0 || payloadLength > length - 4) return null;
+
+		return new String(data, offset + 4, payloadLength, StandardCharsets.UTF_8);
+	}
+
+	@Override
+	public void run() {
+
+		if(socket==null) return;
+
+		byte[] buffer = new byte[MAX_PACKET];
+
+		while(true) {
+
+			try {
+
+				DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+
+				socket.receive(packet);
+
+				InetAddress address = packet.getAddress();
+
+				clients.add(address);
+
+				String payload = decode(packet);
+
+				if(payload==null) continue;
+
+				if(payload.startsWith("REGISTER:")) {
+
+					String name = payload.substring(9).trim();
+
+					// 2026-11-09 新增（优先级4）：昵称长度校验，避免超长/空昵称。
+					if(name.isEmpty()) name = "游客";
+					if(name.length() > 16) name = name.substring(0, 16);
+
+					register(address.getHostAddress(), name);
+
+					sendTo(address, "INFO:注册成功，昵称：" + name);
+
+				}else if(payload.startsWith("CHAT:")) {
+
+					String body = payload.substring(5);
+
+					int split = body.indexOf(':');
+
+					if(split <= 0) continue;
+
+					String name = body.substring(0, split);
+					String message = body.substring(split + 1);
+
+					if(name.length() > 16) name = name.substring(0, 16);
+					if(message.length() > 200) message = message.substring(0, 200);
+
+					// 2026-11-09 修复（优先级4）：把聊天内容转发给所有已知客户端。
+					broadcast("CHAT:" + name + ":" + message);
+				}
+
+			} catch (IOException e) {
+				// 2026-11-09 修复（优先级4）：单个坏包不再导致服务器循环中断。
+				System.err.println("服务器接收消息失败: " + e.getMessage());
+			} catch (RuntimeException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	public void play() {
+		thread=new Thread(this);
+		thread.start();
+	}
+
+	// 2026-11-09 修复（优先级4）：原来 main 被整段注释，服务器无法直接启动；现在提供入口。
+	public static void main(String[] args) {
+		new Sever().play();
+	}
 }

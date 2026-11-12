@@ -2,10 +2,11 @@ package image;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import javax.imageio.ImageIO;
 
 import frame.Startgame;
@@ -167,11 +168,14 @@ public static BufferedImage redleftdead4;
   public static List<BufferedImage> monsterrunleft=new ArrayList<BufferedImage>();
   public static List<BufferedImage> monsterdeadright=new ArrayList<BufferedImage>();
   public static List<BufferedImage> monsterdeadleft=new ArrayList<BufferedImage>();
-  public static List<Monster> monster=new ArrayList<Monster>();
+  // 2026-11-09 修复（优先级2）：实体集合会被 time/paint/技能/死亡等多个线程并发增删，
+  // 改用 CopyOnWriteArrayList，避免遍历时抛 ConcurrentModificationException / IndexOutOfBoundsException。
+  public static List<Monster> monster=new CopyOnWriteArrayList<Monster>();
   public static List<BufferedImage> Revitalize=new ArrayList<BufferedImage>();
   public static List<BufferedImage> slimeleft=new ArrayList<BufferedImage>();
   public static List<BufferedImage> slimeright=new ArrayList<BufferedImage>();
-  public static List<Slime> slime =new ArrayList<Slime>();
+  // 2026-11-09 修复（优先级2）：同上，改为线程安全集合。
+  public static List<Slime> slime =new CopyOnWriteArrayList<Slime>();
   public static List<BufferedImage> greenleft=new ArrayList<BufferedImage>();
   public static List<BufferedImage> redleft=new ArrayList<BufferedImage>();
   public static List<BufferedImage> redright=new ArrayList<BufferedImage>();
@@ -180,48 +184,67 @@ public static BufferedImage redleftdead4;
   public static List<BufferedImage> reddeadleft=new ArrayList<BufferedImage>();
   public static List<BufferedImage> reddeadright=new ArrayList<BufferedImage>();
   public static List<BufferedImage> greendeadright=new ArrayList<BufferedImage>();
-  public static List<Monster3> red=new ArrayList<Monster3>();
-  public static List<Monster2> green=new ArrayList<Monster2>();
-  
+  // 2026-11-09 修复（优先级2）：同上，改为线程安全集合。
+  public static List<Monster3> red=new CopyOnWriteArrayList<Monster3>();
+  public static List<Monster2> green=new CopyOnWriteArrayList<Monster2>();
+
+/**
+ * 2026-11-09 修复（优先级5）：改为从 classpath 读取资源。
+ * 原代码使用 new File("src/image/...")，依赖启动时的工作目录，
+ * 打包成 jar 或从其他目录启动时会全部加载失败。现在可随 class 文件一起发布。
+ */
+private static BufferedImage load(String path) {
+	try (InputStream in = getimage.class.getResourceAsStream(path)) {
+		if (in == null) {
+			System.err.println("图片资源不存在: " + path);
+			return null;
+		}
+		return ImageIO.read(in);
+	} catch (IOException e) {
+		System.err.println("图片资源加载失败: " + path);
+		e.printStackTrace();
+		return null;
+	}
+}
+
 public void init() {//初始化图片
-	try {
-		win=ImageIO.read(new File("src/image/VICTORY(1).png"));
-		gameover=ImageIO.read(new File("src/image/GAMEOVER.png"));
-		netWork=ImageIO.read(new File("src/image/Login.jpg"));
-		backgrandfirst=ImageIO.read(new File("src/image/backgrand.jpg"));
-		pointer=ImageIO.read(new File("src/image/sword.png"));
-		backgrandtwo=ImageIO.read(new File("src/image/background1.png"));
-		backgrandthree=ImageIO.read(new File("src/image/background2.png"));
-		backgrandfour=ImageIO.read(new File("src/image/background3.png"));
-		obstaletree=ImageIO.read(new File("src/image/R-C.png"));
+		win=load("/image/VICTORY(1).png");
+		gameover=load("/image/GAMEOVER.png");
+		netWork=load("/image/Login.jpg");
+		backgrandfirst=load("/image/backgrand.jpg");
+		pointer=load("/image/sword.png");
+		backgrandtwo=load("/image/background1.png");
+		backgrandthree=load("/image/background2.png");
+		backgrandfour=load("/image/background3.png");
+		obstaletree=load("/image/R-C.png");
 		
-		warriorstandright=ImageIO.read(new File("src/image/cha_01.png"));
-		warriorrightone=ImageIO.read(new File("src/image/cha_02.png"));
-		warriorrighttwo=ImageIO.read(new File("src/image/cha_03.png"));
-		warriorrightthree=ImageIO.read(new File("src/image/cha_04.png"));
-		warriorrightfour=ImageIO.read(new File("src/image/cha_05.png"));
-		warriorrightfive=ImageIO.read(new File("src/image/cha_06.png"));
-		warriorrightsix=ImageIO.read(new File("src/image/cha_07.png"));
-		warriorrightseven=ImageIO.read(new File("src/image/cha_08.png"));
+		warriorstandright=load("/image/cha_01.png");
+		warriorrightone=load("/image/cha_02.png");
+		warriorrighttwo=load("/image/cha_03.png");
+		warriorrightthree=load("/image/cha_04.png");
+		warriorrightfour=load("/image/cha_05.png");
+		warriorrightfive=load("/image/cha_06.png");
+		warriorrightsix=load("/image/cha_07.png");
+		warriorrightseven=load("/image/cha_08.png");
 		
-		warriorrightattack1=ImageIO.read(new File("src/image/cha_17.png"));
-		warriorrightattack2=ImageIO.read(new File("src/image/cha_18.png"));
-		warriorrightattack3=ImageIO.read(new File("src/image/cha_19.png"));
-		warriorrightattack4=ImageIO.read(new File("src/image/cha_20.png"));
-		warriorrightattack5=ImageIO.read(new File("src/image/cha_22.png"));
-		warriorrightattack6=ImageIO.read(new File("src/image/cha_23.png"));
+		warriorrightattack1=load("/image/cha_17.png");
+		warriorrightattack2=load("/image/cha_18.png");
+		warriorrightattack3=load("/image/cha_19.png");
+		warriorrightattack4=load("/image/cha_20.png");
+		warriorrightattack5=load("/image/cha_22.png");
+		warriorrightattack6=load("/image/cha_23.png");
 		
-		warriorrightdead1=ImageIO.read(new File("src/image/cha2_01.png"));
-		warriorrightdead2=ImageIO.read(new File("src/image/cha2_02.png"));
-		warriorrightdead3=ImageIO.read(new File("src/image/cha2_03.png"));
+		warriorrightdead1=load("/image/cha2_01.png");
+		warriorrightdead2=load("/image/cha2_02.png");
+		warriorrightdead3=load("/image/cha2_03.png");
 		
-		Revitalize1=ImageIO.read(new File("src/image/texiao_01(1).png"));
-		Revitalize2=ImageIO.read(new File("src/image/texiao_02(1).png"));
-		Revitalize3=ImageIO.read(new File("src/image/texiao_03(1).png"));
-		Revitalize4=ImageIO.read(new File("src/image/texiao_04(1).png"));
+		Revitalize1=load("/image/texiao_01(1).png");
+		Revitalize2=load("/image/texiao_02(1).png");
+		Revitalize3=load("/image/texiao_03(1).png");
+		Revitalize4=load("/image/texiao_04(1).png");
 		
-		sword=ImageIO.read(new File("src/image/sword2(1).png"));
-		stone=ImageIO.read(new File("src/image/stone.png"));
+		sword=load("/image/sword2(1).png");
+		stone=load("/image/stone.png");
 		
 		right.add(warriorstandright);
 		right.add(warriorrightone);
@@ -243,107 +266,107 @@ public void init() {//初始化图片
 		rightdead.add(warriorrightdead2);
 		rightdead.add(warriorrightdead3);
 		
-		warriorstandleft=ImageIO.read(new File("src/image/lcha_01.png"));
-		warriorleftone=ImageIO.read(new File("src/image/lcha_02.png"));
-		warriorlefttwo=ImageIO.read(new File("src/image/lcha_03.png"));
-		warriorleftthree=ImageIO.read(new File("src/image/lcha_04.png"));
-		warriorleftfour=ImageIO.read(new File("src/image/lcha_05.png"));
-		warriorleftfive=ImageIO.read(new File("src/image/lcha_06.png"));
-		warriorleftsix=ImageIO.read(new File("src/image/lcha_07.png"));
-		warriorleftseven=ImageIO.read(new File("src/image/lcha_08.png"));
+		warriorstandleft=load("/image/lcha_01.png");
+		warriorleftone=load("/image/lcha_02.png");
+		warriorlefttwo=load("/image/lcha_03.png");
+		warriorleftthree=load("/image/lcha_04.png");
+		warriorleftfour=load("/image/lcha_05.png");
+		warriorleftfive=load("/image/lcha_06.png");
+		warriorleftsix=load("/image/lcha_07.png");
+		warriorleftseven=load("/image/lcha_08.png");
 		
-		warriorleftattack1=ImageIO.read(new File("src/image/lcha_17.png"));
-		warriorleftattack2=ImageIO.read(new File("src/image/lcha_18.png"));
-		warriorleftattack3=ImageIO.read(new File("src/image/lcha_19.png"));
-		warriorleftattack4=ImageIO.read(new File("src/image/lcha_20.png"));
-		warriorleftattack5=ImageIO.read(new File("src/image/lcha_22.png"));
-		warriorleftattack6=ImageIO.read(new File("src/image/lcha_23.png"));
+		warriorleftattack1=load("/image/lcha_17.png");
+		warriorleftattack2=load("/image/lcha_18.png");
+		warriorleftattack3=load("/image/lcha_19.png");
+		warriorleftattack4=load("/image/lcha_20.png");
+		warriorleftattack5=load("/image/lcha_22.png");
+		warriorleftattack6=load("/image/lcha_23.png");
 		
-		warriorleftdead1=ImageIO.read(new File("src/image/lcha2_01.png"));
-		warriorleftdead2=ImageIO.read(new File("src/image/lcha2_02.png"));
-		warriorleftdead3=ImageIO.read(new File("src/image/lcha2_03.png"));
+		warriorleftdead1=load("/image/lcha2_01.png");
+		warriorleftdead2=load("/image/lcha2_02.png");
+		warriorleftdead3=load("/image/lcha2_03.png");
 		
-		monsterrunright1=ImageIO.read(new File("src/image/mos2_01.png"));
-		monsterrunright2=ImageIO.read(new File("src/image/mos2_02.png"));
-		monsterrunright3=ImageIO.read(new File("src/image/mos2_03.png"));
-		monsterrunright4=ImageIO.read(new File("src/image/mos2_04.png"));
-		monsterrunright5=ImageIO.read(new File("src/image/mos2_05.png"));
-		monsterrunright6=ImageIO.read(new File("src/image/mos2_06.png"));
-		monsterrunright7=ImageIO.read(new File("src/image/mos2_07.png"));
+		monsterrunright1=load("/image/mos2_01.png");
+		monsterrunright2=load("/image/mos2_02.png");
+		monsterrunright3=load("/image/mos2_03.png");
+		monsterrunright4=load("/image/mos2_04.png");
+		monsterrunright5=load("/image/mos2_05.png");
+		monsterrunright6=load("/image/mos2_06.png");
+		monsterrunright7=load("/image/mos2_07.png");
 		
-		monsterrunleft1=ImageIO.read(new File("src/image/lmos2_01.png"));
-		monsterrunleft2=ImageIO.read(new File("src/image/lmos2_02.png"));
-		monsterrunleft3=ImageIO.read(new File("src/image/lmos2_03.png"));
-		monsterrunleft4=ImageIO.read(new File("src/image/lmos2_04.png"));
-		monsterrunleft5=ImageIO.read(new File("src/image/lmos2_05.png"));
-		monsterrunleft6=ImageIO.read(new File("src/image/lmos2_06.png"));
-		monsterrunleft7=ImageIO.read(new File("src/image/lmos2_07.png"));
+		monsterrunleft1=load("/image/lmos2_01.png");
+		monsterrunleft2=load("/image/lmos2_02.png");
+		monsterrunleft3=load("/image/lmos2_03.png");
+		monsterrunleft4=load("/image/lmos2_04.png");
+		monsterrunleft5=load("/image/lmos2_05.png");
+		monsterrunleft6=load("/image/lmos2_06.png");
+		monsterrunleft7=load("/image/lmos2_07.png");
 		
-		monsterdeadleft1=ImageIO.read(new File("src/image/lmos3_01.png"));
-		monsterdeadleft2=ImageIO.read(new File("src/image/lmos3_02.png"));
+		monsterdeadleft1=load("/image/lmos3_01.png");
+		monsterdeadleft2=load("/image/lmos3_02.png");
 		
-		monsterdeadright1=ImageIO.read(new File("src/image/mos3_01.png"));
-		monsterdeadright2=ImageIO.read(new File("src/image/mos3_02.png"));
+		monsterdeadright1=load("/image/mos3_01.png");
+		monsterdeadright2=load("/image/mos3_02.png");
 		
-		slimeleft1=ImageIO.read(new File("src/image/lmos1_01.png"));
-		slimeleft2=ImageIO.read(new File("src/image/lmos1_02.png"));
-		slimeleft3=ImageIO.read(new File("src/image/lmos1_03.png"));
-		slimeleft4=ImageIO.read(new File("src/image/lmos1_04.png"));
-		slimeleft5=ImageIO.read(new File("src/image/lmos1_05.png"));
-		slimeleft6=ImageIO.read(new File("src/image/lmos1_06.png"));
-		slimeleft7=ImageIO.read(new File("src/image/lmos1_07.png"));
-		slimeleft8=ImageIO.read(new File("src/image/lmos1_08.png"));
+		slimeleft1=load("/image/lmos1_01.png");
+		slimeleft2=load("/image/lmos1_02.png");
+		slimeleft3=load("/image/lmos1_03.png");
+		slimeleft4=load("/image/lmos1_04.png");
+		slimeleft5=load("/image/lmos1_05.png");
+		slimeleft6=load("/image/lmos1_06.png");
+		slimeleft7=load("/image/lmos1_07.png");
+		slimeleft8=load("/image/lmos1_08.png");
 		
-		slimeright1=ImageIO.read(new File("src/image/lmos1r_01.png"));
-		slimeright2=ImageIO.read(new File("src/image/lmos1r_02.png"));
-		slimeright3=ImageIO.read(new File("src/image/lmos1r_03.png"));
-		slimeright4=ImageIO.read(new File("src/image/lmos1r_04.png"));
-		slimeright5=ImageIO.read(new File("src/image/lmos1r_05.png"));
-		slimeright6=ImageIO.read(new File("src/image/lmos1r_06.png"));
-		slimeright7=ImageIO.read(new File("src/image/lmos1r_07.png"));
-		slimeright8=ImageIO.read(new File("src/image/lmos1r_08.png"));
+		slimeright1=load("/image/lmos1r_01.png");
+		slimeright2=load("/image/lmos1r_02.png");
+		slimeright3=load("/image/lmos1r_03.png");
+		slimeright4=load("/image/lmos1r_04.png");
+		slimeright5=load("/image/lmos1r_05.png");
+		slimeright6=load("/image/lmos1r_06.png");
+		slimeright7=load("/image/lmos1r_07.png");
+		slimeright8=load("/image/lmos1r_08.png");
 		
-		greenleft1=ImageIO.read(new File("src/image/lgbrin_01.png"));
-		greenleft2=ImageIO.read(new File("src/image/lgbrin_02.png"));
-		greenleft3=ImageIO.read(new File("src/image/lgbrin_03.png"));
-		greenleft4=ImageIO.read(new File("src/image/lgbrin_04.png"));
+		greenleft1=load("/image/lgbrin_01.png");
+		greenleft2=load("/image/lgbrin_02.png");
+		greenleft3=load("/image/lgbrin_03.png");
+		greenleft4=load("/image/lgbrin_04.png");
 		
-		greenright1=ImageIO.read(new File("src/image/rgbrin_01.png"));
-		greenright2=ImageIO.read(new File("src/image/rgbrin_02.png"));
-		greenright3=ImageIO.read(new File("src/image/rgbrin_03.png"));
-		greenright4=ImageIO.read(new File("src/image/rgbrin_04.png"));
+		greenright1=load("/image/rgbrin_01.png");
+		greenright2=load("/image/rgbrin_02.png");
+		greenright3=load("/image/rgbrin_03.png");
+		greenright4=load("/image/rgbrin_04.png");
 		
-		greendeadright1=ImageIO.read(new File("src/image/rgbirn.d_01.png"));
-		greendeadright2=ImageIO.read(new File("src/image/rgbirn.d_02.png"));
-		greendeadright3=ImageIO.read(new File("src/image/rgbirn.d_03.png"));
-		greendeadright4=ImageIO.read(new File("src/image/rgbirn.d_04.png"));
+		greendeadright1=load("/image/rgbirn.d_01.png");
+		greendeadright2=load("/image/rgbirn.d_02.png");
+		greendeadright3=load("/image/rgbirn.d_03.png");
+		greendeadright4=load("/image/rgbirn.d_04.png");
 		
-		greendeadleft1=ImageIO.read(new File("src/image/lgbirn.d_01.png"));
-		greendeadleft2=ImageIO.read(new File("src/image/lgbirn.d_02.png"));
-		greendeadleft3=ImageIO.read(new File("src/image/lgbirn.d_03.png"));
-		greendeadleft4=ImageIO.read(new File("src/image/lgbirn.d_04.png"));
+		greendeadleft1=load("/image/lgbirn.d_01.png");
+		greendeadleft2=load("/image/lgbirn.d_02.png");
+		greendeadleft3=load("/image/lgbirn.d_03.png");
+		greendeadleft4=load("/image/lgbirn.d_04.png");
 		
-		redleft1=ImageIO.read(new File("src/image/ledgbrin_01.png"));
-		redleft2=ImageIO.read(new File("src/image/ledgbrin_02.png"));
-		redleft3=ImageIO.read(new File("src/image/ledgbrin_03.png"));
-		redleft4=ImageIO.read(new File("src/image/ledgbrin_04.png"));
-		redleft5=ImageIO.read(new File("src/image/ledgbrin_05.png"));
+		redleft1=load("/image/ledgbrin_01.png");
+		redleft2=load("/image/ledgbrin_02.png");
+		redleft3=load("/image/ledgbrin_03.png");
+		redleft4=load("/image/ledgbrin_04.png");
+		redleft5=load("/image/ledgbrin_05.png");
 		
-		redright1=ImageIO.read(new File("src/image/redgbrin_01.png"));
-		redright2=ImageIO.read(new File("src/image/redgbrin_02.png"));
-		redright3=ImageIO.read(new File("src/image/redgbrin_03.png"));
-		redright4=ImageIO.read(new File("src/image/redgbrin_04.png"));
-		redright5=ImageIO.read(new File("src/image/redgbrin_05.png"));
+		redright1=load("/image/redgbrin_01.png");
+		redright2=load("/image/redgbrin_02.png");
+		redright3=load("/image/redgbrin_03.png");
+		redright4=load("/image/redgbrin_04.png");
+		redright5=load("/image/redgbrin_05.png");
 		
-		redrightdead1=ImageIO.read(new File("src/image/redgbrin.d_01_01.png"));
-		redrightdead2=ImageIO.read(new File("src/image/redgbrin.d_01_02.png"));
-		redrightdead3=ImageIO.read(new File("src/image/redgbrin.d_01_03.png"));
-		redrightdead4=ImageIO.read(new File("src/image/redgbrin.d_01_04.png"));
+		redrightdead1=load("/image/redgbrin.d_01_01.png");
+		redrightdead2=load("/image/redgbrin.d_01_02.png");
+		redrightdead3=load("/image/redgbrin.d_01_03.png");
+		redrightdead4=load("/image/redgbrin.d_01_04.png");
 		
-		redleftdead1=ImageIO.read(new File("src/image/ledgbrin.d_01_01.png"));
-		redleftdead2=ImageIO.read(new File("src/image/ledgbrin.d_01_02.png"));
-		redleftdead3=ImageIO.read(new File("src/image/ledgbrin.d_01_03.png"));
-		redleftdead4=ImageIO.read(new File("src/image/ledgbrin.d_01_04.png"));
+		redleftdead1=load("/image/ledgbrin.d_01_01.png");
+		redleftdead2=load("/image/ledgbrin.d_01_02.png");
+		redleftdead3=load("/image/ledgbrin.d_01_03.png");
+		redleftdead4=load("/image/ledgbrin.d_01_04.png");
 
 		greenleft.add(greenleft1);
 		greenleft.add(greenleft2);
@@ -453,10 +476,6 @@ public void init() {//初始化图片
 		Revitalize.add(Revitalize2);
 		Revitalize.add(Revitalize3);
 		Revitalize.add(Revitalize4);
-		
-	} catch (IOException e) {
-		e.printStackTrace();
-	}
 }
 
 }

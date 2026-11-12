@@ -35,6 +35,10 @@ public class Warrior {
 	
 public static BufferedImage showpicture=getimage.warriorstandright;//创建人物展示图片
 
+// 2026-11-09 修复（优先级6）：记录人物朝向（right/left）。
+// 攻击动画在松手后仍要完整播放，结束时需要据此恢复正确的站立帧。
+public static String facing="right";
+
 public static int speed=Startgame.width/112;//战士移动速度
 
 public static int jumpspeed=Startgame.height/192;//战士跳跃速度
@@ -47,7 +51,9 @@ public static boolean movecontrol=true;//控制人物移动
 
 public static boolean jumpcontrol=true;//控制人物跳跃
 
-public static boolean impact=true;
+// 2026-11-09 修复（优先级3）：初始值改为 false。
+// 原来为 true，导致开局第一次碰到怪物/树时会"白嫖"一次伤害；现在只有攻击动画第 5 帧才置 true。
+public static boolean impact=false;
 
 public static boolean attackcontrol=true;
 
@@ -72,66 +78,63 @@ if(Warrior.WarriorHP<=0&&dead==true) {
 				
 			}
 			
+			// 2026-11-09 修复（优先级3）：所有接触判定都要求目标血量 > 0，
+			// 避免已经死亡、看不见的怪物/史莱姆继续扣血；
+			// 同时把按下标遍历改为增强 for，兼容线程安全的 CopyOnWriteArrayList。
 			if(impact==true&&o.getRectangletree().intersects(getRectangleWarrior())) {
 				o.treeHP--;
 				impact=false;
 			}
-			for(int i=0;i<getimage.monster.size();i++) {
-			if(impact==true&&getimage.monster.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
-				
-					getimage.monster.get(i).MinsterHp--;
-				
-				impact=false;
-			}
-			}
-			for(int i=0;i<getimage.slime.size();i++) {
-				if(impact==true&&getimage.slime.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
-					
-						getimage.slime.get(i).SlimeHp--;
-					
+			for (Monster m : getimage.monster) {
+				if (m.MinsterHp > 0 && impact==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
+					m.MinsterHp--;
 					impact=false;
 				}
 			}
-				for(int i=0;i<getimage.red.size();i++) {
-					if(impact==true&&getimage.red.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
-						
-							getimage.red.get(i).MinsterHp--;
-						
-						impact=false;
-					}
+			for (Slime s : getimage.slime) {
+				if (s.SlimeHp > 0 && impact==true && s.getRectangleMonster().intersects(getRectangleWarrior())) {
+					s.SlimeHp--;
+					impact=false;
 				}
-					for(int i=0;i<getimage.green.size();i++) {
-						if(impact==true&&getimage.green.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
-							
-								getimage.green.get(i).MinsterHp--;
-							
-							impact=false;
-						}
-				}
-			for(int i=0;i<getimage.monster.size();i++) {
-			if(getimage.monster.get(i).attackcontrol==true&&getimage.monster.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
-				WarriorHP--;
-				getimage.monster.get(i).attackcontrol=false;
 			}
+			for (Monster3 m : getimage.red) {
+				if (m.MinsterHp > 0 && impact==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
+					m.MinsterHp--;
+					impact=false;
+				}
 			}
-			for(int i=0;i<getimage.slime.size();i++) {
-				if(getimage.slime.get(i).attackcontrol==true&&getimage.slime.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
+			for (Monster2 m : getimage.green) {
+				if (m.MinsterHp > 0 && impact==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
+					m.MinsterHp--;
+					impact=false;
+				}
+			}
+
+			// 2026-11-09 修复（优先级3）：怪物反击同样要求血量 > 0。
+			for (Monster m : getimage.monster) {
+				if (m.MinsterHp > 0 && m.attackcontrol==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
 					WarriorHP--;
-					getimage.slime.get(i).attackcontrol=false;
+					m.attackcontrol=false;
 				}
-				}
-			for(int i=0;i<getimage.red.size();i++) {
-				if(getimage.red.get(i).attackcontrol==true&&getimage.red.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
+			}
+			for (Slime s : getimage.slime) {
+				if (s.SlimeHp > 0 && s.attackcontrol==true && s.getRectangleMonster().intersects(getRectangleWarrior())) {
 					WarriorHP--;
-					getimage.red.get(i).attackcontrol=false;
+					s.attackcontrol=false;
 				}
-				}
-			for(int i=0;i<getimage.green.size();i++) {
-				if(getimage.green.get(i).attackcontrol==true&&getimage.green.get(i).getRectangleMonster().intersects(getRectangleWarrior())) {
+			}
+			for (Monster3 m : getimage.red) {
+				if (m.MinsterHp > 0 && m.attackcontrol==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
 					WarriorHP--;
-					getimage.green.get(i).attackcontrol=false;
+					m.attackcontrol=false;
 				}
+			}
+			for (Monster2 m : getimage.green) {
+				if (m.MinsterHp > 0 && m.attackcontrol==true && m.getRectangleMonster().intersects(getRectangleWarrior())) {
+					WarriorHP--;
+					m.attackcontrol=false;
 				}
+			}
 
 			
 			
@@ -240,47 +243,46 @@ class attack implements Runnable{
 
 	@Override
 	public void run() {
-		
 
-		if(Startgame.jumpstatus.equals("jump")==false&&Startgame.attackstatus.equals("attack")) {
-			int index=0;
-			
-			while(true) {
-				
-				if(index==1) {
-					
-				soundplayer.attack();
-				}
+		// 2026-11-09 修复（优先级6）：原动画依赖"按住 J"：
+		// keyReleased 会立刻把 attackstatus 改回 stand，轻点时循环马上 break，
+		// 只播出音效、看不到帧动画，也到不了第 5 帧（impact=true）造成伤害。
+		// 现在改为一次性完整播放 6 帧，不再依赖按键是否按住。
+		if(Startgame.jumpstatus.equals("jump")==false) {
+
+			for(int index=0;index<6;index++) {
+
 				if(Warrior.deadcontrol==true) break;
-				
-				if(Startgame.attackstatus.equals("stand")) break;
-				
-				if(index==6) {
-					index=0;
+
+				if(index==1) {
+					soundplayer.attack();
 				}
-				if(Startgame.status.equals("left")) Warrior.showpicture=getimage.leftattack.get(index);
-				
+
+				if(Warrior.facing.equals("left")) Warrior.showpicture=getimage.leftattack.get(index);
 				else Warrior.showpicture=getimage.rightattack.get(index);
-				
+
 				if(index==5) Warrior.impact=true;
-				
 				else Warrior.impact=false;
-					
+
 				try {
-					
 					thread.sleep(100);//图片切换速度
-					
 				} catch (InterruptedException e) {
-					
 					e.printStackTrace();
 				}
-				index++;
-				
 			}
-			
+
 		}
+
+		Warrior.impact=false;
+
+		// 2026-11-09 修复（优先级6）：攻击结束后恢复站立帧，避免角色定格在攻击姿势。
+		// 若正在移动，则交给 right/left 线程继续刷新走路帧。
+		if(Startgame.status.equals("left")==false&&Startgame.status.equals("right")==false) {
+			Warrior.showpicture=Warrior.facing.equals("left")?getimage.warriorstandleft:getimage.warriorstandright;
+		}
+
 		Warrior.attackcontrol=true;
-		
+
 	}
 	
 	public void play() {
@@ -312,8 +314,12 @@ private static Thread thread;//用于启动线程
 			if(index==8) {
 				index=0;
 			}
-			if(Startgame.jumpstatus.equals("jump")==false&&Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.right.get(index);//循环切换图片
-			else if(Startgame.attackstatus.equals("stand"))Warrior.showpicture=getimage.warriorstandright;
+			// 2026-11-09 修复（优先级6）：攻击动画播放期间（attackcontrol==false）不要用走路帧
+			// 覆盖攻击帧，否则松手后"边移动边攻击"会被走路动画抢帧导致闪烁/看不到攻击。
+			if(Warrior.attackcontrol==true) {
+				if(Startgame.jumpstatus.equals("jump")==false&&Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.right.get(index);//循环切换图片
+				else if(Startgame.attackstatus.equals("stand"))Warrior.showpicture=getimage.warriorstandright;
+			}
 			
 			if(Warrior.x<=Startgame.width-Startgame.width/9) {//判断是否带动背景移动
 				if(Startgame.jumpstatus.equals("jump")) Warrior.x+=Warrior.speed/5;
@@ -336,7 +342,8 @@ private static Thread thread;//用于启动线程
 		}
 		backgrand.backgrandmoveright=false;
 		Warrior.movecontrol=true;
-		Warrior.showpicture=getimage.warriorstandright;
+		// 2026-11-09 修复（优先级6）：攻击动画进行中时不要覆盖攻击帧。
+		if(Warrior.attackcontrol==true) Warrior.showpicture=getimage.warriorstandright;
 	}
 	public void play() {
 		thread=new Thread(this);
@@ -366,8 +373,11 @@ private static Thread thread;//用于启动线程
 			if(index==8) {
 				index=0;
 			}
-			if(Startgame.jumpstatus.equals("jump")==false&&Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.left.get(index);
-			else if(Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.warriorstandleft;
+			// 2026-11-09 修复（优先级6）：同上，攻击期间不要覆盖攻击帧。
+			if(Warrior.attackcontrol==true) {
+				if(Startgame.jumpstatus.equals("jump")==false&&Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.left.get(index);
+				else if(Startgame.attackstatus.equals("stand")) Warrior.showpicture=getimage.warriorstandleft;
+			}
 			
 			
 			if(Warrior.x>=Startgame.width/9) {
@@ -391,7 +401,8 @@ private static Thread thread;//用于启动线程
 		}
 		backgrand.backgrandmoveleft=false;
 		Warrior.movecontrol=true;
-		Warrior.showpicture=getimage.warriorstandleft;
+		// 2026-11-09 修复（优先级6）：攻击动画进行中时不要覆盖攻击帧。
+		if(Warrior.attackcontrol==true) Warrior.showpicture=getimage.warriorstandleft;
 	}
 	public void play() {
 		thread=new Thread(this);
@@ -404,20 +415,23 @@ class jump implements Runnable{
 private static Thread thread;
 	@Override
 	public void run() {
-		
+
 		soundplayer.jump();
-		
+
+		// 2026-11-09 修复（优先级6）：步长至少为 1，避免极小分辨率下 height/160 == 0 造成死循环。
+		int step = Math.max(1, Startgame.height/160);
+
 		while(true) {
-			
+
 			if(Warrior.deadcontrol==true) break;
-			
+
 		try {
 			thread.sleep(10);
 		} catch (InterruptedException e) {
 			// TODO 自动生成的 catch 块
 			e.printStackTrace();
 		}
-			if(Startgame.jumpstatus.equals("jump")&&Warrior.y>=Startgame.height/5) Warrior.y-=Startgame.height/160;
+			if(Startgame.jumpstatus.equals("jump")&&Warrior.y>=Startgame.height/5) Warrior.y-=step;
 			else break;
 		}
 		while(true) {
@@ -427,8 +441,11 @@ private static Thread thread;
 				// TODO 自动生成的 catch 块
 				e.printStackTrace();
 			}
-			Warrior.y+=Startgame.height/160;
-			if(Warrior.y==Startgame.height/2) {
+			Warrior.y+=step;
+			// 2026-11-09 修复（优先级6）：原用 y==height/2 精确相等判断，一旦步长不对齐会永远落不下去；
+			// 改为"到达或越过"即落地，并修正到准确高度。
+			if(Warrior.y>=Startgame.height/2) {
+				Warrior.y=Startgame.height/2;
 				break;
 			}
 		}

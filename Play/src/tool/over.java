@@ -64,10 +64,11 @@ public void paintself(Graphics g) {
 		x=0;
 		y=0;
        Startgame.checkpoint=0;
-   	   Obstale.treeHP=7;
+   	   // 2026-11-09 修复（优先级6）：按当前难度重置，而不是固定 7/45。
+   	   Obstale.treeHP=resetTreeHp();
 		Obstale.x2=Startgame.width*2-Startgame.width/5;
 		backgrand.x=0;
-		Warrior.WarriorHP=45;
+		Warrior.WarriorHP=resetWarriorHp();
 		Warrior.x=0;
 		Warrior.y=Startgame.height/2;
 		Warrior.overcontrol=false;
@@ -90,8 +91,9 @@ public void paintself(Graphics g) {
 		Startgame.checkpoint=0;
 		x=0;
 		y=0;
-		Obstale.treeHP=7;
-		Warrior.WarriorHP=45;
+		// 2026-11-09 修复（优先级6）：按当前难度重置。
+		Obstale.treeHP=resetTreeHp();
+		Warrior.WarriorHP=resetWarriorHp();
 		Warrior.x=0;
 		backgrand.x=0;
 		Obstale.x2=Startgame.width*2-Startgame.width/5;
@@ -104,6 +106,19 @@ public void paintself(Graphics g) {
 	public void play() {
 		thread=new Thread(this);
 		thread.start();
+	}
+
+	// 2026-11-09 新增（优先级6）：以难度为基准的重置值，与 MyKeyListner 中的难度设置保持一致。
+	private static int resetTreeHp() {
+		if(Startgame.difficulty==3) return 20;
+		if(Startgame.difficulty==2) return 15;
+		return 7;
+	}
+
+	private static int resetWarriorHp() {
+		if(Startgame.difficulty==3) return 15;
+		if(Startgame.difficulty==2) return 35;
+		return 45;
 	}
 
 }

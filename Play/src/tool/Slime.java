@@ -53,6 +53,9 @@ public class Slime {
 	
 	
 	public  void machine() {
+		// 2026-11-09 修复（优先级6）：distance 原在字段初始化时用 x=0 计算且从此不再更新，
+		// 导致 machine() 里的距离判断形同虚设；这里每次判断前重新计算与玩家的距离。
+		distance = Math.abs(Math.abs(x) - Math.abs(Warrior.x));
 		if(distance>=50) {
 			if(x>Warrior.x&&movecontrol==true) {
 				sl.play();
@@ -69,7 +72,7 @@ public class Slime {
 }
 
 class slimeright implements Runnable{
-static Thread thread;
+private Thread thread;
 	Slime s;
 public slimeright(Slime s) {
 	this.s=s;
@@ -114,7 +117,7 @@ public slimeright(Slime s) {
 }
 
 class slimeleft implements Runnable{
-static Thread thread;
+private Thread thread;
 Slime s;
 public slimeleft(Slime s) {
 	this.s=s;

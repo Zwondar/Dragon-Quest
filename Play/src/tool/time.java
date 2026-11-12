@@ -52,8 +52,10 @@ public class time implements Runnable{
 			curMonsterhp++;
 			if(curMonsterhp==5) {
 				
-				for(int i=0;i<getimage.monster.size();i++) {
-					if(getimage.monster.get(i).MinsterHp<=Monster.HP&&Obstale.treeHP>0&&getimage.monster.get(i).MinsterHp>0) getimage.monster.get(i).MinsterHp++;			
+				// 2026-11-09 修复（优先级2）：改用增强 for，避免下标遍历期间列表被其他线程
+				// （绘制线程移除死亡怪物）修改而抛 IndexOutOfBoundsException。
+				for(Monster m:getimage.monster) {
+					if(m.MinsterHp<=Monster.HP&&Obstale.treeHP>0&&m.MinsterHp>0) m.MinsterHp++;
 					}
 				curMonsterhp=0;
 			}

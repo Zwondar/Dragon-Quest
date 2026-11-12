@@ -66,6 +66,9 @@ public class Monster3 {
 	 
 	 
 	public  void machine() {
+		// 2026-11-09 修复（优先级6）：distance 原在字段初始化时用 x=0 计算且从此不再更新，
+		// 导致 machine() 里的距离判断形同虚设；这里每次判断前重新计算与玩家的距离。
+		distance = Math.abs(Math.abs(x) - Math.abs(Warrior.x));
 		if(distance>=50) {
 			if(x>Warrior.x&&movecontrol==true) {
 				ml.play();
@@ -81,7 +84,7 @@ public class Monster3 {
 }
 
 class mondead3 implements Runnable{
-static Thread thread;
+private Thread thread;
 Monster3 m;
 
 public mondead3(Monster3 m) {
@@ -128,7 +131,7 @@ public mondead3(Monster3 m) {
 }
 
 class monright3 implements Runnable{
-static Thread thread;
+private Thread thread;
 	Monster3 m;
 public monright3(Monster3 m) {
 	this.m=m;
@@ -173,7 +176,7 @@ public monright3(Monster3 m) {
 }
 
 class monleft3 implements Runnable{
-static Thread thread;
+private Thread thread;
 Monster3 m;
 public monleft3(Monster3 m) {
 	this.m=m;
